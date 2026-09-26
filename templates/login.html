@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar · Fluxo Inteligente</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="brand-panel">
+      <div class="brand-mark">FI</div>
+      <p class="eyebrow">Fluxo Inteligente</p>
+      <h1>Gestão financeira e operação em um só lugar.</h1>
+      <p class="muted">Cadastre sua empresa, acompanhe o caixa e organize solicitações com regras e SLA.</p>
+    </section>
+    <section class="auth-card">
+      <div class="auth-head"><p class="eyebrow">Acesso</p><h2>Entrar na conta</h2><p class="muted">Use seu e-mail e senha.</p></div>
+      <form id="login-form" class="form-stack">
+        <label>E-mail<input id="email" type="email" autocomplete="email" required></label>
+        <label>Senha<input id="senha" type="password" autocomplete="current-password" required></label>
+        <div id="form-error" class="form-error" hidden></div>
+        <button class="button primary" type="submit">Entrar</button>
+      </form>
+      <p class="auth-footer">Ainda não possui empresa? <a href="/cadastro">Criar conta empresarial</a></p>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+  <script>
+    document.getElementById("login-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const error = document.getElementById("form-error");
+      error.hidden = true;
+      try {
+        await FI.login({ email: document.getElementById("email").value, senha: document.getElementById("senha").value });
+        window.location.href = "/dashboard";
+      } catch (err) {
+        error.textContent = err.message; error.hidden = false;
+      }
+    });
+  </script>
+</body>
+</html>
