@@ -1,67 +1,183 @@
 # Arquitetura
 
-O Fluxo Inteligente usa arquitetura em camadas para separar API, aplicação, regras de negócio e persistência.
+O Fluxo Inteligente é uma aplicação web multiempresa com dois domínios principais:
+
+1. Gestão financeira.
+2. Triagem operacional de solicitações.
+
+A aplicação utiliza separação de responsabilidades entre apresentação, API, serviços, regras de negócio, persistência e autenticação.
 
 ~~~text
-Cliente
-   |
-   v
-FastAPI
-   |
-   v
-Service de Triagem
-   |------> Prioridade
-   |------> SLA
-   |------> Encaminhamento
-   |------> Status
-   |
-   v
-Repository
-   |
-   v
-SQLAlchemy
-   |
-   v
-SQLite / PostgreSQL
+                          BROWSER
+                             |
+                    HTML + CSS + JavaScript
+                             |
+                        FASTAPI APP
+          _________________/ | \________________
+         /                  |                   \
+        v                   v                    v
+      AUTH              FINANCEIRO            TRIAGEM
+        |                   |                    |
+        v                   v                    v
+     Sessões            Dashboard             Prioridade
+     Usuários           CRUD                  SLA
+     Empresas           CSV                   Encaminhamento
+                         |                    Revisão
+                         |                    Histórico
+                         \___________  __________/
+                                     \/
+                                REPOSITORIES
+                                     |
+                                  SQLALCHEMY
+                                     |
+                          SQLite / PostgreSQL
 ~~~
 
-## Responsabilidades
+## Domínio de autenticação
 
-### API
+Empresa é a unidade de isolamento.
 
-app/main.py expõe os endpoints HTTP e controla as respostas da aplicação.
+~~~text
+Empresa
+  |
+  +-- Usuários
+  |
+  +-- Sessões
+  |
+  +-- Lançamentos financeiros
+  |
+  +-- Solicitações
+~~~
 
-### Schemas
+O primeiro usuário criado no cadastro recebe perfil ADMIN.
 
-app/schemas/ contém os contratos de entrada e saída com Pydantic.
+As senhas são armazenadas somente como hash.
 
-### Services
+As sessões utilizam tokens aleatórios, armazenados como hash no banco, com expiração e revogação.
 
-app/services/ orquestra o fluxo sem concentrar a regra diretamente nos endpoints.
+Operações de escrita da interface utilizam um token CSRF separado do cookie de sessão.
 
-### Rules
+## Domínio financeiro
 
-app/rules/ contém regras determinísticas e testáveis para prioridade, SLA, encaminhamento e status.
+Um lançamento possui:
 
-### Repository
+- tipo;
+- descrição;
+- categoria;
+- valor;
+- data;
+- status;
+- observações;
+- empresa;
+- usuário que criou o registro.
 
-app/repositories/ isola o acesso ao banco.
+O dashboard consulta os dados persistidos e calcula os indicadores do período.
 
-### Models
+### Indicadores
 
-app/models/ representa solicitações e histórico persistidos pelo SQLAlchemy.
+~~~text
+Lançamentos
+   |
+   +-- Receitas realizadas
+   +-- Despesas realizadas
+   +-- Saldo
+   +-- Pendências
+   +-- Evolução mensal
+   +-- Despesas por categoria
+   +-- Últimos lançamentos
+~~~
 
-## Decisões
+Os gráficos são alimentados pela resposta real da API.
 
-- separação de responsabilidades;
-- regras de negócio testáveis isoladamente;
-- persistência desacoplada;
-- histórico de decisões;
-- revisão humana em situações de incerteza;
-- banco configurável via DATABASE_URL;
-- SQLite por padrão para facilitar demonstração local;
-- PostgreSQL disponível via configuração da aplicação.
+## Domínio de triagem
 
-## Evolução
+Solicitações são vinculadas à empresa autenticada.
 
-A primeira versão não usa IA para decidir criticidade. Uma futura camada de IA pode extrair características do texto, mas a decisão deve continuar protegida pelas regras do domínio e pela revisão humana quando necessário.
+O fluxo é:
+
+~~~text
+Solicitação
+    |
+    v
+Impacto + Urgência
+    |
+    v
+Matriz de prioridade
+    |
+    v
+SLA
+    |
+    v
+Encaminhamento
+    |
+    +--> Revisão humana quando necessário
+    |
+    v
+Histórico + status
+~~~
+
+## SLA
+
+A política do projeto diferencia:
+
+- tempo de resposta;
+- tempo de resolução;
+- calendário 24x7;
+- horário comercial;
+- pausa por dependências externas;
+- retomada;
+- cumprimento ou violação.
+
+Os valores são de referência da simulação e não representam contrato de uma organização específica.
+
+## Persistência
+
+SQLite é usado como padrão para facilitar execução local.
+
+PostgreSQL pode ser utilizado configurando DATABASE_URL.
+
+O acesso aos dados passa pelos repositories para evitar que os endpoints conheçam detalhes de persistência.
+
+## API
+
+Os routers são separados por responsabilidade:
+
+~~~text
+app/api/
+├── auth.py
+├── financeiro.py
+├── solicitacoes.py
+└── web.py
+~~~
+
+Isso reduz o acoplamento e facilita a evolução do sistema.
+
+## Qualidade
+
+O projeto inclui:
+
+- testes unitários das regras;
+- testes da triagem;
+- testes HTTP;
+- GitHub Actions para executar a suíte;
+- Docker;
+- documentação técnica;
+- .env.example;
+- isolamento multiempresa.
+
+## Próximas evoluções
+
+Para uma implantação corporativa seriam apropriados:
+
+- Alembic para migrações;
+- RBAC detalhado;
+- rate limiting;
+- MFA;
+- recuperação de senha;
+- observabilidade;
+- auditoria de segurança;
+- backups;
+- integração com ERP/bancos;
+- infraestrutura de produção.
+
+A arquitetura atual foi organizada para permitir essas evoluções sem concentrar as regras de domínio na camada HTTP.
