@@ -1,8 +1,10 @@
+import os
+
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import get_current_user, require_csrf
 from app.models.usuario import Usuario
 from app.schemas.auth import (
     CsrfResponse,
@@ -21,7 +23,7 @@ COOKIE_NAME = "session_token"
 COOKIE_KWARGS = {
     "httponly": True,
     "samesite": "lax",
-    "secure": __import__("os").getenv("ENVIRONMENT", "development").lower() == "production",
+    "secure": os.getenv("ENVIRONMENT", "development").lower() == "production",
     "max_age": 8 * 60 * 60,
     "path": "/",
 }
@@ -98,6 +100,7 @@ def login(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     response: Response,
+    user: Usuario = Depends(require_csrf),
     db: Session = Depends(get_db),
     session_token: str | None = Cookie(default=None),
 ):
