@@ -118,7 +118,7 @@ def revisar(
     solicitacao.setor_responsavel = setor
     prioridade_enum = Prioridade(prioridade)
     solicitacao.sla_horas = calcular_sla_horas(prioridade_enum)
-    solicitacao.sla_deadline = calcular_deadline(prioridade_enum, agora)
+    solicitacao.sla_deadline = calcular_deadline(prioridade_enum, solicitacao.created_at)
     solicitacao.revisao_humana = False
     solicitacao.motivo_revisao = None
     solicitacao.updated_at = agora
