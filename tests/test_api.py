@@ -47,9 +47,12 @@ def test_criar_solicitacao_completa():
 
     assert response.status_code == 201
     body = response.json()
+
     assert body["prioridade"] == "A"
     assert body["setor_responsavel"] == "Tecnologia da Informação"
-    assert body["sla_horas"] == 2
+    assert body["sla_resposta_minutos"] == 15
+    assert body["sla_resolucao_minutos"] == 240
+    assert body["sla_status"] == "RUNNING"
     assert body["revisao_humana"] is False
 
 
@@ -63,6 +66,7 @@ def test_solicitacao_incompleta_vai_para_revisao():
     body = response.json()
     assert body["revisao_humana"] is True
     assert body["prioridade"] is None
+    assert body["sla_status"] == "PENDING_REVIEW"
 
 
 def test_fluxo_de_status_e_solucao():
@@ -88,7 +92,39 @@ def test_fluxo_de_status_e_solucao():
     )
 
     assert response.status_code == 200
-    assert response.json()["status"] == "SOLUCAO"
+    body = response.json()
+    assert body["status"] == "SOLUCAO"
+    assert body["sla_status"] == "MET"
+
+
+def test_sla_pode_ser_pausado_e_retomado():
+    response = client.post("/solicitacoes", json=payload())
+    solicitacao_id = response.json()["id"]
+
+    client.patch(
+        f"/solicitacoes/{solicitacao_id}/status",
+        json={"status": "EM_ANALISE"},
+    )
+    client.patch(
+        f"/solicitacoes/{solicitacao_id}/status",
+        json={"status": "EM_PROCESSO"},
+    )
+
+    response = client.patch(
+        f"/solicitacoes/{solicitacao_id}/status",
+        json={"status": "AGUARDANDO_SOLICITANTE"},
+    )
+    assert response.status_code == 200
+    assert response.json()["sla_status"] == "PAUSED"
+    assert response.json()["sla_paused_at"] is not None
+
+    response = client.patch(
+        f"/solicitacoes/{solicitacao_id}/status",
+        json={"status": "EM_PROCESSO"},
+    )
+    assert response.status_code == 200
+    assert response.json()["sla_status"] == "RUNNING"
+    assert response.json()["sla_paused_at"] is None
 
 
 def test_transicao_invalida():
