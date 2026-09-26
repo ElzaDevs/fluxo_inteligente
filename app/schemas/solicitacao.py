@@ -37,12 +37,10 @@ class SolicitacaoResponse(BaseModel):
     area_solicitante: str
     categoria: str
     prazo: datetime | None
-
     impacto: Impacto | None
     urgencia: Urgencia | None
     prioridade: Prioridade | None
     setor_responsavel: str | None
-
     sla_resposta_minutos: int | None
     sla_resolucao_minutos: int | None
     sla_response_deadline: datetime | None
@@ -50,12 +48,10 @@ class SolicitacaoResponse(BaseModel):
     sla_status: str
     sla_paused_at: datetime | None
     sla_paused_minutes: int
-
     revisao_humana: bool
     motivo_revisao: str | None
     status: StatusSolicitacao
     solucao: str | None
-
     created_at: datetime
     updated_at: datetime
     historico: list[HistoricoResponse] = Field(default_factory=list)
