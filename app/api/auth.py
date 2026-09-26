@@ -12,8 +12,8 @@ from app.schemas.auth import (
     EmpresaResponse,
     UsuarioResponse,
 )
-from app.security import generate_token
-from app.repositories.auth import AuthService
+from app.security import generate_token, hash_token
+from app.services.auth import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
@@ -21,7 +21,7 @@ COOKIE_NAME = "session_token"
 COOKIE_KWARGS = {
     "httponly": True,
     "samesite": "lax",
-    "secure": False,
+    "secure": __import__("os").getenv("ENVIRONMENT", "development").lower() == "production",
     "max_age": 8 * 60 * 60,
     "path": "/",
 }
@@ -126,8 +126,6 @@ def csrf(
     session_token: str | None = Cookie(default=None),
 ):
     from app.models.sessao import Sessao
-    from app.security import hash_token
-
     sessao = db.query(Sessao).filter(
         Sessao.token_hash == hash_token(session_token),
         Sessao.revoked_at.is_(None),
