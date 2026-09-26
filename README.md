@@ -43,7 +43,7 @@ SQLite / PostgreSQL
 - Pydantic
 - SQLAlchemy
 - SQLite por padrão
-- PostgreSQL via DATABASE_URL
+- PostgreSQL via DATABASE_URL e psycopg
 - Pytest
 - HTTPX
 
