@@ -24,7 +24,22 @@ def get_current_user(
         Sessao.revoked_at.is_(None),
     ).first()
 
-    if not sessao or sessao.expires_at <= datetime.now(timezone.utc):
+    if sessao:
+        agora = datetime.now(timezone.utc)
+        expiracao = sessao.expires_at
+        if expiracao.tzinfo is None:
+            expiracao = expiracao.replace(tzinfo=timezone.utc)
+        if expiracao <= agora:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sessão expirada ou inválida.",
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sessão expirada ou inválida.",
+        )
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sessão expirada ou inválida.",
