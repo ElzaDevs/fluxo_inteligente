@@ -1,8 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field, field_serializer
 
 
 TipoLancamento = Literal["RECEITA", "DESPESA"]
@@ -30,9 +30,11 @@ class LancamentoUpdate(BaseModel):
 
 
 class FinanceiroResponseModel(BaseModel):
-    model_config = ConfigDict(
-        json_encoders={Decimal: lambda value: float(value)}
-    )
+    @field_serializer("*", when_used="json")
+    def serialize_decimal_values(self, value: Any) -> Any:
+        if isinstance(value, Decimal):
+            return float(value)
+        return value
 
 
 class LancamentoResponse(FinanceiroResponseModel):
