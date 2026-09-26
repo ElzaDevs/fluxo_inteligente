@@ -9,6 +9,7 @@ from app.rules.encaminhamento import determinar_setor
 from app.rules.prioridade import Impacto, Prioridade, Urgencia, determinar_prioridade
 from app.rules.sla import calcular_deadlines, obter_politica
 from app.schemas.solicitacao import SolicitacaoCreate
+from app.models.usuario import Usuario
 
 
 @dataclass(frozen=True)
@@ -84,10 +85,11 @@ def executar_triagem(
     )
 
 
-def criar_solicitacao(db: Session, dados: SolicitacaoCreate) -> Solicitacao:
+def criar_solicitacao(db: Session, dados: SolicitacaoCreate, user: Usuario) -> Solicitacao:
     agora = datetime.now(timezone.utc)
 
     solicitacao = Solicitacao(
+        empresa_id=user.empresa_id,
         titulo=dados.titulo,
         descricao=dados.descricao,
         solicitante=dados.solicitante,
