@@ -9,3 +9,4 @@ psycopg[binary]
 python-multipart
 pytest
 httpx
+httpx2
