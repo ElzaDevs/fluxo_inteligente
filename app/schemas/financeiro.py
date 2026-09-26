@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 TipoLancamento = Literal["RECEITA", "DESPESA"]
@@ -29,7 +29,13 @@ class LancamentoUpdate(BaseModel):
     observacoes: str | None = None
 
 
-class LancamentoResponse(BaseModel):
+class FinanceiroResponseModel(BaseModel):
+    model_config = ConfigDict(
+        json_encoders={Decimal: lambda value: float(value)}
+    )
+
+
+class LancamentoResponse(FinanceiroResponseModel):
     id: int
     tipo: TipoLancamento
     descricao: str
@@ -41,18 +47,18 @@ class LancamentoResponse(BaseModel):
     created_at: datetime
 
 
-class CategoriaResumo(BaseModel):
+class CategoriaResumo(FinanceiroResponseModel):
     categoria: str
     total: Decimal
 
 
-class MesResumo(BaseModel):
+class MesResumo(FinanceiroResponseModel):
     mes: str
     receitas: Decimal
     despesas: Decimal
 
 
-class DashboardResponse(BaseModel):
+class DashboardResponse(FinanceiroResponseModel):
     periodo_inicio: date
     periodo_fim: date
     total_receitas: Decimal
