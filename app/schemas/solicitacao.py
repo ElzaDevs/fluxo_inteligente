@@ -43,8 +43,14 @@ class SolicitacaoResponse(BaseModel):
     prioridade: Prioridade | None
     setor_responsavel: str | None
 
-    sla_horas: int | None
+    sla_resposta_minutos: int | None
+    sla_resolucao_minutos: int | None
+    sla_response_deadline: datetime | None
     sla_deadline: datetime | None
+    sla_status: str
+    sla_paused_at: datetime | None
+    sla_paused_minutes: int
+
     revisao_humana: bool
     motivo_revisao: str | None
     status: StatusSolicitacao
@@ -64,4 +70,5 @@ class SolicitacaoListItem(BaseModel):
     setor_responsavel: str | None
     status: StatusSolicitacao
     revisao_humana: bool
+    sla_status: str
     created_at: datetime
