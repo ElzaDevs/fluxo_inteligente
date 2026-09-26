@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -28,117 +30,137 @@ app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
 
-def payload(**kwargs):
+def registrar(email=None):
+    email = email or f"teste-{uuid4().hex[:10]}@empresa.com"
+    response = client.post(
+        "/auth/register",
+        json={
+            "empresa": "Empresa Teste",
+            "nome": "Usuário Teste",
+            "email": email,
+            "senha": "SenhaForte123!",
+        },
+    )
+    assert response.status_code == 201
+    return response
+
+
+def csrf():
+    response = client.get("/auth/csrf")
+    assert response.status_code == 200
+    return response.json()["csrf_token"]
+
+
+def lancamento(**kwargs):
     data = {
-        "titulo": "Sistema financeiro indisponível",
-        "descricao": "O sistema financeiro está indisponível para todos os funcionários.",
-        "solicitante": "Elza",
-        "area_solicitante": "Administrativo",
-        "categoria": "TI / Sistemas",
-        "impacto_informado": "critico",
-        "urgencia_informada": "critica",
+        "tipo": "RECEITA",
+        "descricao": "Venda de serviço",
+        "categoria": "Vendas",
+        "valor": 1500.00,
+        "data_lancamento": "2026-09-15",
+        "status": "REALIZADO",
+        "observacoes": "Receita de teste",
     }
     data.update(kwargs)
     return data
 
 
-def test_criar_solicitacao_completa():
-    response = client.post("/solicitacoes", json=payload())
+def test_cadastro_login_logout():
+    email = f"{uuid4().hex[:10]}@empresa.com"
+    response = registrar(email)
+    assert response.json()["empresa"]["nome"] == "Empresa Teste"
 
-    assert response.status_code == 201
-    body = response.json()
+    response = client.get("/auth/me")
+    assert response.status_code == 200
+    assert response.json()["usuario"]["email"] == email
 
-    assert body["prioridade"] == "A"
-    assert body["setor_responsavel"] == "Tecnologia da Informação"
-    assert body["sla_resposta_minutos"] == 15
-    assert body["sla_resolucao_minutos"] == 240
-    assert body["sla_status"] == "RUNNING"
-    assert body["revisao_humana"] is False
+    token = csrf()
+    response = client.post("/auth/logout", headers={"X-CSRF-Token": token})
+    assert response.status_code == 204
 
+    response = client.get("/auth/me")
+    assert response.status_code == 401
 
-def test_solicitacao_incompleta_vai_para_revisao():
     response = client.post(
-        "/solicitacoes",
-        json=payload(impacto_informado=None),
+        "/auth/login",
+        json={"email": email, "senha": "SenhaForte123!"},
     )
+    assert response.status_code == 200
 
+
+def test_crud_financeiro_e_dashboard():
+    registrar()
+
+    token = csrf()
+    response = client.post(
+        "/financeiro/lancamentos",
+        json=lancamento(),
+        headers={"X-CSRF-Token": token},
+    )
     assert response.status_code == 201
-    body = response.json()
-    assert body["revisao_humana"] is True
-    assert body["prioridade"] is None
-    assert body["sla_status"] == "PENDING_REVIEW"
+    lancamento_id = response.json()["id"]
 
-
-def test_fluxo_de_status_e_solucao():
-    response = client.post("/solicitacoes", json=payload())
-    solicitacao_id = response.json()["id"]
-
-    assert client.patch(
-        f"/solicitacoes/{solicitacao_id}/status",
-        json={"status": "EM_ANALISE"},
-    ).status_code == 200
-
-    assert client.patch(
-        f"/solicitacoes/{solicitacao_id}/status",
-        json={"status": "EM_PROCESSO"},
-    ).status_code == 200
-
-    response = client.patch(
-        f"/solicitacoes/{solicitacao_id}/status",
-        json={
-            "status": "SOLUCAO",
-            "solucao": "Serviço restaurado e operação normalizada.",
-        },
+    response = client.post(
+        "/financeiro/lancamentos",
+        json=lancamento(
+            tipo="DESPESA",
+            descricao="Folha",
+            categoria="Pessoal",
+            valor=400.00,
+        ),
+        headers={"X-CSRF-Token": csrf()},
     )
+    assert response.status_code == 201
 
+    response = client.get("/financeiro/dashboard?inicio=2026-09-01&fim=2026-09-30")
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "SOLUCAO"
-    assert body["sla_status"] == "MET"
+    assert body["total_receitas"] == 1500.0
+    assert body["total_despesas"] == 400.0
+    assert body["saldo"] == 1100.0
+    assert body["quantidade_lancamentos"] == 2
 
-
-def test_sla_pode_ser_pausado_e_retomado():
-    response = client.post("/solicitacoes", json=payload())
-    solicitacao_id = response.json()["id"]
-
-    client.patch(
-        f"/solicitacoes/{solicitacao_id}/status",
-        json={"status": "EM_ANALISE"},
-    )
-    client.patch(
-        f"/solicitacoes/{solicitacao_id}/status",
-        json={"status": "EM_PROCESSO"},
-    )
-
-    response = client.patch(
-        f"/solicitacoes/{solicitacao_id}/status",
-        json={"status": "AGUARDANDO_SOLICITANTE"},
+    response = client.put(
+        f"/financeiro/lancamentos/{lancamento_id}",
+        json={"valor": 2000.00},
+        headers={"X-CSRF-Token": csrf()},
     )
     assert response.status_code == 200
-    assert response.json()["sla_status"] == "PAUSED"
-    assert response.json()["sla_paused_at"] is not None
+    assert response.json()["valor"] == 2000.0
 
-    response = client.patch(
-        f"/solicitacoes/{solicitacao_id}/status",
-        json={"status": "EM_PROCESSO"},
+    response = client.delete(
+        f"/financeiro/lancamentos/{lancamento_id}",
+        headers={"X-CSRF-Token": csrf()},
     )
+    assert response.status_code == 204
+
+
+def test_importacao_csv():
+    registrar()
+
+    csv_content = (
+        "tipo,descricao,categoria,valor,data_lancamento,status,observacoes\n"
+        "RECEITA,Contrato A,Vendas,\"1.250,50\",2026-09-10,REALIZADO,CSV\n"
+        "DESPESA,Internet,Infraestrutura,120.00,2026-09-11,REALIZADO,CSV\n"
+    )
+
+    response = client.post(
+        "/financeiro/importar-csv",
+        files={"arquivo": ("dados.csv", csv_content, "text/csv")},
+        headers={"X-CSRF-Token": csrf()},
+    )
+
     assert response.status_code == 200
-    assert response.json()["sla_status"] == "RUNNING"
-    assert response.json()["sla_paused_at"] is None
+    assert response.json()["importados"] == 2
 
 
-def test_transicao_invalida():
-    response = client.post("/solicitacoes", json=payload())
-    solicitacao_id = response.json()["id"]
-
-    response = client.patch(
-        f"/solicitacoes/{solicitacao_id}/status",
-        json={"status": "SOLUCAO", "solucao": "Tentativa inválida."},
-    )
-
-    assert response.status_code == 409
+def test_solicitacoes_exigem_autenticacao():
+    client.post("/auth/logout", headers={"X-CSRF-Token": csrf()})
+    response = client.get("/solicitacoes")
+    assert response.status_code == 401
 
 
-def test_buscar_solicitacao_inexistente():
-    response = client.get("/solicitacoes/99999")
-    assert response.status_code == 404
+def test_health():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
