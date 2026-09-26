@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cadastrar empresa · Fluxo Inteligente</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="brand-panel">
+      <div class="brand-mark">FI</div>
+      <p class="eyebrow">Primeiro acesso</p>
+      <h1>Configure a operação financeira da sua empresa.</h1>
+      <p class="muted">O primeiro usuário será administrador e poderá começar a cadastrar dados imediatamente.</p>
+    </section>
+    <section class="auth-card">
+      <div class="auth-head"><p class="eyebrow">Cadastro</p><h2>Criar empresa</h2><p class="muted">Preencha os dados principais.</p></div>
+      <form id="register-form" class="form-stack">
+        <label>Empresa<input id="empresa" required maxlength="160"></label>
+        <label>CNPJ <span class="muted">(opcional)</span><input id="cnpj" maxlength="18"></label>
+        <label>Seu nome<input id="nome" required maxlength="120"></label>
+        <label>E-mail<input id="email" type="email" required></label>
+        <label>Senha<input id="senha" type="password" minlength="8" required></label>
+        <div id="form-error" class="form-error" hidden></div>
+        <button class="button primary" type="submit">Criar empresa</button>
+      </form>
+      <p class="auth-footer">Já possui acesso? <a href="/login">Voltar para o login</a></p>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+  <script>
+    document.getElementById("register-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const error = document.getElementById("form-error");
+      error.hidden = true;
+      try {
+        await FI.register({
+          empresa: document.getElementById("empresa").value,
+          cnpj: document.getElementById("cnpj").value || null,
+          nome: document.getElementById("nome").value,
+          email: document.getElementById("email").value,
+          senha: document.getElementById("senha").value
+        });
+        window.location.href = "/dashboard";
+      } catch (err) {
+        error.textContent = err.message; error.hidden = false;
+      }
+    });
+  </script>
+</body>
+</html>
