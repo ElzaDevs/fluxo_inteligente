@@ -1,71 +1,116 @@
 # Fluxo Inteligente
 
-API de triagem e priorização de solicitações internas, desenvolvida como projeto de Engenharia de Software.
+Sistema web multiempresa para gestão financeira e triagem operacional.
 
-O sistema transforma uma solicitação desestruturada em uma decisão de atendimento rastreável, combinando regras de negócio, SLA, encaminhamento e revisão humana.
+O objetivo é simular um cenário empresarial real: uma organização cadastra sua conta, acessa um ambiente protegido, registra receitas e despesas, importa dados, acompanha indicadores financeiros e também organiza solicitações internas com prioridade, SLA e rastreabilidade.
 
-## Problema
+Este é um projeto de portfólio executável. Não é apresentado como sistema já contratado ou usado em produção por uma empresa.
 
-Solicitações internas podem chegar sem prioridade clara, sem contexto suficiente ou para o setor errado.
+## Fluxo principal
 
-O sistema organiza a triagem para responder:
+~~~text
+Cadastro da empresa
+       |
+       v
+Login
+       |
+       v
+Dashboard
+  |            |
+  v            v
+Financeiro   Triagem
+  |            |
+  v            v
+Receitas     Prioridade
+Despesas     SLA
+Importação   Encaminhamento
+  |
+  v
+Indicadores e gráficos reais
+~~~
 
-- o que aconteceu?
-- qual é o impacto?
-- qual é a urgência?
-- qual é a prioridade?
-- qual equipe deve tratar?
-- qual SLA se aplica?
-- é necessária revisão humana?
+## Funcionalidades
+
+### Conta empresarial
+
+- cadastro da empresa;
+- criação do primeiro administrador;
+- login;
+- logout;
+- sessão com expiração;
+- senha armazenada com hash Argon2;
+- proteção CSRF;
+- isolamento por empresa.
+
+### Financeiro
+
+- cadastro de receita;
+- cadastro de despesa;
+- edição;
+- exclusão;
+- status realizado ou pendente;
+- filtro por período;
+- saldo calculado;
+- fluxo mensal;
+- despesas por categoria;
+- lançamentos recentes;
+- importação CSV.
+
+### Triagem
+
+- impacto;
+- urgência;
+- matriz de prioridade;
+- SLA de resposta;
+- SLA de resolução;
+- calendário 24x7 e horário comercial;
+- pausa do SLA por dependência;
+- encaminhamento;
+- revisão humana;
+- histórico.
 
 ## Arquitetura
 
 ~~~text
+Browser
+   |
+Templates + JavaScript + CSS
+   |
 FastAPI
-  |
-Service de Triagem
-  |---- Regra de Prioridade
-  |---- Regra de SLA
-  |---- Regra de Encaminhamento
-  |---- Regra de Status
-  |
-Repository
-  |
+   |
+   +---- Auth
+   |
+   +---- Financeiro Service
+   |
+   +---- Triagem Service
+   |
+Rules + Repositories
+   |
 SQLAlchemy
-  |
+   |
 SQLite / PostgreSQL
 ~~~
 
+A aplicação separa apresentação, API, serviços, regras e persistência para manter o código evolutivo e testável.
+
 ## Stack
 
-- Python
+- Python 3.12
 - FastAPI
+- Jinja2
 - Pydantic
 - SQLAlchemy
-- SQLite por padrão
-- PostgreSQL via DATABASE_URL e psycopg
+- PostgreSQL + psycopg
+- SQLite
+- pwdlib + Argon2
 - Pytest
 - HTTPX
+- Docker
+- GitHub Actions
 
-## Funcionalidades do MVP
-
-- registro de solicitações;
-- classificação por impacto e urgência;
-- matriz determinística de prioridade;
-- cálculo de SLA;
-- encaminhamento por categoria;
-- revisão humana com justificativa;
-- controle de status;
-- registro de solução;
-- histórico de decisões;
-- testes automatizados;
-- documentação técnica.
-
-## Executando localmente
+## Como executar
 
 ~~~bash
-git clone https://github.com/ElzaDevs/fluxo_inteligente.git
-cd fluxo_inteligente
 python -m venv .venv
 ~~~
 
@@ -93,45 +138,80 @@ Execute:
 uvicorn app.main:app --reload
 ~~~
 
-A API ficará disponível em http://127.0.0.1:8000.
+Acesse:
 
-A documentação Swagger ficará disponível em http://127.0.0.1:8000/docs.
+- http://127.0.0.1:8000
+- http://127.0.0.1:8000/cadastro
+- http://127.0.0.1:8000/login
+- http://127.0.0.1:8000/dashboard
+- http://127.0.0.1:8000/docs
 
-## Exemplo
+## Docker
 
-~~~json
-{
-  "titulo": "Sistema financeiro indisponível",
-  "descricao": "O sistema financeiro está indisponível para todos os funcionários.",
-  "solicitante": "Elza",
-  "area_solicitante": "Administrativo",
-  "categoria": "TI / Sistemas",
-  "impacto_informado": "critico",
-  "urgencia_informada": "critica"
-}
+~~~bash
+docker compose up --build
 ~~~
 
-Resultado esperado no MVP:
+O compose sobe a aplicação e PostgreSQL para demonstração local.
 
-~~~json
-{
-  "prioridade": "A",
-  "setor_responsavel": "Tecnologia da Informação",
-  "sla_horas": 2,
-  "revisao_humana": false
-}
+## Banco
+
+Sem configuração adicional, a aplicação usa:
+
+~~~text
+sqlite:///./fluxo_inteligente.db
 ~~~
 
-## Endpoints principais
+Para PostgreSQL:
 
-| Método | Endpoint | Objetivo |
-|---|---|---|
-| GET | /health | Health check |
-| POST | /solicitacoes | Registrar e triar solicitação |
-| GET | /solicitacoes | Listar solicitações |
-| GET | /solicitacoes/{id} | Consultar solicitação e histórico |
-| PATCH | /solicitacoes/{id}/revisao | Revisar decisão humana |
-| PATCH | /solicitacoes/{id}/status | Controlar ciclo e registrar solução |
+~~~text
+postgresql+psycopg://usuario:senha@host:5432/banco
+~~~
+
+## CSV
+
+O arquivo docs/exemplo-lancamentos.csv pode ser usado como modelo de carga.
+
+Colunas:
+
+~~~text
+tipo,descricao,categoria,valor,data_lancamento,status,observacoes
+~~~
+
+O importador aceita tanto valores com ponto decimal quanto valores no padrão brasileiro com vírgula.
+
+## API
+
+Autenticação:
+
+~~~text
+POST /auth/register
+POST /auth/login
+POST /auth/logout
+GET  /auth/me
+GET  /auth/csrf
+~~~
+
+Financeiro:
+
+~~~text
+GET    /financeiro/dashboard
+GET    /financeiro/lancamentos
+POST   /financeiro/lancamentos
+PUT    /financeiro/lancamentos/{id}
+DELETE /financeiro/lancamentos/{id}
+POST   /financeiro/importar-csv
+~~~
+
+Triagem:
+
+~~~text
+POST  /solicitacoes
+GET   /solicitacoes
+GET   /solicitacoes/{id}
+PATCH /solicitacoes/{id}/revisao
+PATCH /solicitacoes/{id}/status
+~~~
 
 ## Testes
 
@@ -139,62 +219,33 @@ Resultado esperado no MVP:
 pytest -q
 ~~~
 
-A suíte cobre a matriz de prioridade, SLA, triagem e principais fluxos HTTP.
+A suíte cobre autenticação, CRUD financeiro, importação, dashboard, triagem, matriz de prioridade, SLA e transições de status.
 
-## Estrutura
+## Limites para produção
 
-~~~text
-app/
-├── main.py
-├── database.py
-├── models/
-├── repositories/
-├── rules/
-├── schemas/
-└── services/
+Antes de armazenar dados empresariais reais, ainda seriam necessários mecanismos como HTTPS, rate limiting, MFA, recuperação de senha, RBAC detalhado, gestão de segredos, observabilidade, backups, migrações de banco, políticas de retenção e revisão de segurança.
 
-docs/
-├── arquitetura.md
-├── fluxo.md
-├── problema.md
-├── requisitos.md
-├── regras-negocio.md
-├── sla.md
-└── usuarios.md
+Os SLAs utilizados são valores de referência da simulação. Em uma implantação real, seriam parametrizados conforme o serviço e o contrato.
 
-tests/
-├── test_api.py
-├── test_prioridade.py
-├── test_sla.py
-└── test_triagem.py
-~~~
+## Competências demonstradas
 
-## Limites do MVP
-
-Este é um projeto acadêmico/portfólio. Ele não está conectado a processos corporativos reais.
-
-Não há autenticação, autorização ou integração com sistemas internos.
-
-Os SLAs são valores de referência definidos especificamente para demonstrar a regra de negócio do projeto.
-
-A IA não toma decisões críticas nesta versão. Uma evolução possível é usar IA para extrair características de texto, mantendo regras determinísticas, rastreabilidade e revisão humana.
-
-## Engenharia de Software aplicada
-
-- Engenharia de requisitos;
-- modelagem de processos;
-- regras de negócio explícitas;
-- arquitetura em camadas;
-- separação de responsabilidades;
-- API REST;
-- persistência;
-- testes automatizados;
-- rastreabilidade;
-- tratamento de incerteza;
-- evolução incremental.
+- Engenharia de Software
+- Arquitetura em camadas
+- Backend Python/FastAPI
+- APIs REST
+- Autenticação e segurança
+- Modelagem de dados
+- PostgreSQL/SQLAlchemy
+- Dashboard orientado a dados
+- Regras de negócio
+- SLA/ITSM
+- Testes automatizados
+- CI
+- Importação de dados
+- Rastreabilidade
 
 ## Autora
 
-**Elza Vitória Mendes Silva de Aquino**
+Elza Vitória Mendes Silva de Aquino
 
-Engenharia de Software | Python | Backend | Arquitetura de Software
+Engenharia de Software · Python · Backend · Arquitetura de Software
