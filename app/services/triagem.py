@@ -7,7 +7,7 @@ from app.models.solicitacao import Solicitacao
 from app.repositories.solicitacao import SolicitacaoRepository
 from app.rules.encaminhamento import determinar_setor
 from app.rules.prioridade import Impacto, Prioridade, Urgencia, determinar_prioridade
-from app.rules.sla import calcular_deadline, calcular_sla_horas
+from app.rules.sla import calcular_deadlines, obter_politica
 from app.schemas.solicitacao import SolicitacaoCreate
 
 
@@ -15,7 +15,9 @@ from app.schemas.solicitacao import SolicitacaoCreate
 class ResultadoTriagem:
     prioridade: Prioridade | None
     setor_responsavel: str | None
-    sla_horas: int | None
+    sla_resposta_minutos: int | None
+    sla_resolucao_minutos: int | None
+    sla_response_deadline: datetime | None
     sla_deadline: datetime | None
     revisao_humana: bool
     motivo_revisao: str | None
@@ -41,25 +43,41 @@ def executar_triagem(
         else None
     )
 
-    sla_horas = calcular_sla_horas(prioridade) if prioridade else None
-    sla_deadline = calcular_deadline(prioridade, agora) if prioridade else None
-
     if setor is None:
         motivos.append("Não foi possível determinar o setor responsável pela categoria.")
+
+    sla_resposta_minutos = None
+    sla_resolucao_minutos = None
+    sla_response_deadline = None
+    sla_deadline = None
+
+    if prioridade:
+        politica = obter_politica(prioridade)
+        sla_resposta_minutos = politica.resposta_minutos
+        sla_resolucao_minutos = politica.resolucao_minutos
+        sla_response_deadline, sla_deadline = calcular_deadlines(
+            prioridade,
+            agora,
+        )
 
     solicitacao.impacto = impacto.value if impacto else None
     solicitacao.urgencia = urgencia.value if urgencia else None
     solicitacao.prioridade = prioridade.value if prioridade else None
     solicitacao.setor_responsavel = setor
-    solicitacao.sla_horas = sla_horas
+    solicitacao.sla_resposta_minutos = sla_resposta_minutos
+    solicitacao.sla_resolucao_minutos = sla_resolucao_minutos
+    solicitacao.sla_response_deadline = sla_response_deadline
     solicitacao.sla_deadline = sla_deadline
+    solicitacao.sla_status = "RUNNING" if prioridade else "PENDING_REVIEW"
     solicitacao.revisao_humana = bool(motivos)
     solicitacao.motivo_revisao = " ".join(motivos) if motivos else None
 
     return ResultadoTriagem(
         prioridade=prioridade,
         setor_responsavel=setor,
-        sla_horas=sla_horas,
+        sla_resposta_minutos=sla_resposta_minutos,
+        sla_resolucao_minutos=sla_resolucao_minutos,
+        sla_response_deadline=sla_response_deadline,
         sla_deadline=sla_deadline,
         revisao_humana=solicitacao.revisao_humana,
         motivo_revisao=solicitacao.motivo_revisao,
@@ -95,6 +113,8 @@ def criar_solicitacao(db: Session, dados: SolicitacaoCreate) -> Solicitacao:
             "Triagem automática executada: "
             f"prioridade={resultado.prioridade.value if resultado.prioridade else 'não definida'}, "
             f"setor={resultado.setor_responsavel or 'não definido'}, "
+            f"SLA_resposta={resultado.sla_resposta_minutos or 'não definido'} min, "
+            f"SLA_resolucao={resultado.sla_resolucao_minutos or 'não definido'} min, "
             f"revisão_humana={'sim' if resultado.revisao_humana else 'não'}."
         ),
         agora,
