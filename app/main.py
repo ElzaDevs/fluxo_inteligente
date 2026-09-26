@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
 from app.repositories.solicitacao import SolicitacaoRepository
-from app.rules.prioridade import Impacto, Urgencia, determinar_prioridade
+from app.rules.prioridade import Impacto, Prioridade, Urgencia, determinar_prioridade
 from app.rules.sla import calcular_deadline, calcular_sla_horas
 from app.rules.status import StatusSolicitacao, transicao_valida
 from app.schemas.revisao import RevisaoSolicitacao
@@ -116,13 +116,9 @@ def revisar(
     solicitacao.urgencia = urgencia
     solicitacao.prioridade = prioridade
     solicitacao.setor_responsavel = setor
-    solicitacao.sla_horas = calcular_sla_horas(
-        __import__("app.rules.prioridade", fromlist=["Prioridade"]).Prioridade(prioridade)
-    )
-    solicitacao.sla_deadline = calcular_deadline(
-        __import__("app.rules.prioridade", fromlist=["Prioridade"]).Prioridade(prioridade),
-        agora,
-    )
+    prioridade_enum = Prioridade(prioridade)
+    solicitacao.sla_horas = calcular_sla_horas(prioridade_enum)
+    solicitacao.sla_deadline = calcular_deadline(prioridade_enum, agora)
     solicitacao.revisao_humana = False
     solicitacao.motivo_revisao = None
     solicitacao.updated_at = agora
