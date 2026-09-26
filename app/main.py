@@ -6,8 +6,12 @@ from sqlalchemy.orm import Session
 from app.database import Base, engine, get_db
 from app.repositories.solicitacao import SolicitacaoRepository
 from app.rules.prioridade import Impacto, Prioridade, Urgencia, determinar_prioridade
-from app.rules.sla import calcular_deadlines, calcular_sla_horas, obter_politica
-from app.rules.status import StatusSolicitacao, transicao_valida
+from app.rules.sla import calcular_deadlines, obter_politica
+from app.rules.status import (
+    STATUS_DE_ESPERA,
+    StatusSolicitacao,
+    transicao_valida,
+)
 from app.schemas.revisao import RevisaoSolicitacao
 from app.schemas.solicitacao import (
     SolicitacaoCreate,
@@ -24,9 +28,9 @@ app = FastAPI(
     title="Fluxo Inteligente API",
     description=(
         "MVP de triagem e priorização de solicitações internas com "
-        "regras determinísticas, SLA, encaminhamento e revisão humana."
+        "SLA, encaminhamento, revisão humana e rastreabilidade."
     ),
-    version="1.0.0",
+    version="1.1.0",
 )
 
 
@@ -39,7 +43,7 @@ def health():
 def root():
     return {
         "name": "Fluxo Inteligente",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "message": "API de triagem de solicitações em execução.",
         "docs": "/docs",
     }
@@ -85,7 +89,6 @@ def revisar(
     if solicitacao is None:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
 
-    agora = datetime.now(timezone.utc)
     impacto = dados.impacto.value if dados.impacto else solicitacao.impacto
     urgencia = dados.urgencia.value if dados.urgencia else solicitacao.urgencia
     setor = (
@@ -104,22 +107,29 @@ def revisar(
         )
 
     prioridade = (
-        dados.prioridade.value
+        dados.prioridade
         if dados.prioridade
-        else determinar_prioridade(Impacto(impacto), Urgencia(urgencia)).value
+        else determinar_prioridade(Impacto(impacto), Urgencia(urgencia))
     )
 
+    agora = datetime.now(timezone.utc)
     prioridade_anterior = solicitacao.prioridade
     setor_anterior = solicitacao.setor_responsavel
+    politica = obter_politica(prioridade)
+    resposta_deadline, resolucao_deadline = calcular_deadlines(
+        prioridade,
+        solicitacao.created_at,
+    )
 
     solicitacao.impacto = impacto
     solicitacao.urgencia = urgencia
-    solicitacao.prioridade = prioridade
+    solicitacao.prioridade = prioridade.value
     solicitacao.setor_responsavel = setor
-    prioridade_enum = Prioridade(prioridade)
-    politica = obter_politica(prioridade_enum)
     solicitacao.sla_resposta_minutos = politica.resposta_minutos
     solicitacao.sla_resolucao_minutos = politica.resolucao_minutos
+    solicitacao.sla_response_deadline = resposta_deadline
+    solicitacao.sla_deadline = resolucao_deadline
+    solicitacao.sla_status = "RUNNING"
     solicitacao.revisao_humana = False
     solicitacao.motivo_revisao = None
     solicitacao.updated_at = agora
@@ -129,7 +139,7 @@ def revisar(
         "REVISAO_HUMANA",
         (
             f"{dados.justificativa} "
-            f"Prioridade: {prioridade_anterior or 'não definida'} -> {prioridade}. "
+            f"Prioridade: {prioridade_anterior or 'não definida'} -> {prioridade.value}. "
             f"Setor: {setor_anterior or 'não definido'} -> {setor}."
         ),
         agora,
@@ -168,6 +178,34 @@ def atualizar_status(
         )
 
     agora = datetime.now(timezone.utc)
+    entrando_em_espera = dados.status in STATUS_DE_ESPERA
+    saindo_de_espera = atual in STATUS_DE_ESPERA and dados.status == StatusSolicitacao.EM_PROCESSO
+
+    if entrando_em_espera:
+        solicitacao.sla_paused_at = agora
+        solicitacao.sla_status = "PAUSED"
+
+    if saindo_de_espera:
+        if solicitacao.sla_paused_at:
+            pausa = agora - solicitacao.sla_paused_at
+            minutos_pausa = max(0, int(pausa.total_seconds() // 60))
+            solicitacao.sla_paused_minutes += minutos_pausa
+
+            if solicitacao.sla_response_deadline:
+                solicitacao.sla_response_deadline += pausa
+            if solicitacao.sla_deadline:
+                solicitacao.sla_deadline += pausa
+
+        solicitacao.sla_paused_at = None
+        solicitacao.sla_status = "RUNNING"
+
+    if dados.status == StatusSolicitacao.SOLUCAO:
+        solicitacao.sla_status = (
+            "MET"
+            if solicitacao.sla_deadline and agora <= solicitacao.sla_deadline
+            else "BREACHED"
+        )
+
     solicitacao.status = dados.status.value
     solicitacao.updated_at = agora
 
@@ -181,7 +219,23 @@ def atualizar_status(
         agora,
     )
 
-    if dados.solucao:
+    if entrando_em_espera:
+        repository.adicionar_historico(
+            solicitacao,
+            "SLA_PAUSADO",
+            f"SLA pausado porque a solicitação entrou em {dados.status.value}.",
+            agora,
+        )
+
+    if saindo_de_espera:
+        repository.adicionar_historico(
+            solicitacao,
+            "SLA_REINICIADO",
+            "SLA retomado após saída do estado de espera.",
+            agora,
+        )
+
+    if dados.status == StatusSolicitacao.SOLUCAO:
         repository.adicionar_historico(
             solicitacao,
             "SOLUCAO_REGISTRADA",
