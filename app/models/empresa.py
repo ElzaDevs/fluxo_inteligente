@@ -15,4 +15,13 @@ class Empresa(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     usuarios = relationship("Usuario", back_populates="empresa", cascade="all, delete-orphan")
-    lancamentos = relationship("LancamentoFinanceiro", back_populates="empresa", cascade="all, delete-orphan")
+    lancamentos = relationship(
+        "LancamentoFinanceiro",
+        back_populates="empresa",
+        cascade="all, delete-orphan",
+    )
+    solicitacoes = relationship(
+        "Solicitacao",
+        back_populates="empresa",
+        cascade="all, delete-orphan",
+    )
