@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import Cookie, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -22,7 +24,7 @@ def get_current_user(
         Sessao.revoked_at.is_(None),
     ).first()
 
-    if not sessao or sessao.expires_at <= __import__("datetime").datetime.now(__import__("datetime").timezone.utc):
+    if not sessao or sessao.expires_at <= datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sessão expirada ou inválida.",
