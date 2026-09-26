@@ -164,3 +164,34 @@ def test_health():
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+def test_isolamento_entre_empresas():
+    registrar()
+    response = client.post(
+        "/financeiro/lancamentos",
+        json=lancamento(descricao="Registro privado"),
+        headers={"X-CSRF-Token": csrf()},
+    )
+    assert response.status_code == 201
+    registro_empresa_a = response.json()["id"]
+
+    registrar()
+
+    response = client.get("/financeiro/lancamentos")
+    assert response.status_code == 200
+    assert response.json() == []
+
+    response = client.delete(
+        f"/financeiro/lancamentos/{registro_empresa_a}",
+        headers={"X-CSRF-Token": csrf()},
+    )
+    assert response.status_code == 404
+
+
+def test_csrf_bloqueia_escrita():
+    registrar()
+    response = client.post(
+        "/financeiro/lancamentos",
+        json=lancamento(),
+    )
+    assert response.status_code == 403
