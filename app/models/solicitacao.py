@@ -25,12 +25,22 @@ class Solicitacao(Base):
     impacto: Mapped[str | None] = mapped_column(String(20), nullable=True)
     urgencia: Mapped[str | None] = mapped_column(String(20), nullable=True)
     prioridade: Mapped[str | None] = mapped_column(String(1), nullable=True)
+
     setor_responsavel: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
-    sla_horas: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sla_resposta_minutos: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sla_resolucao_minutos: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sla_response_deadline: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     sla_deadline: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    sla_status: Mapped[str] = mapped_column(String(20), default="RUNNING")
+    sla_paused_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    sla_paused_minutes: Mapped[int] = mapped_column(Integer, default=0)
 
     revisao_humana: Mapped[bool] = mapped_column(Boolean, default=False)
     motivo_revisao: Mapped[str | None] = mapped_column(Text, nullable=True)
