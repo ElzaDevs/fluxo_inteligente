@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · Fluxo Inteligente</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="app-page">
+<header class="topbar">
+  <div><p class="eyebrow">Fluxo Inteligente</p><div id="company-name" class="company-name">Carregando...</div></div>
+  <div class="topbar-actions"><span id="user-name" class="user-pill"></span><button id="logout-button" class="button ghost">Sair</button></div>
+</header>
+
+<main class="dashboard">
+  <section class="hero-row">
+    <div><p class="eyebrow">Visão financeira</p><h1>Dashboard</h1><p class="muted">Indicadores calculados diretamente dos lançamentos da empresa.</p></div>
+    <div class="period-filter">
+      <label>Início<input id="inicio" type="date"></label>
+      <label>Fim<input id="fim" type="date"></label>
+      <button id="apply-filter" class="button secondary">Atualizar</button>
+    </div>
+  </section>
+
+  <section class="metric-grid">
+    <article class="metric-card"><span>Receitas realizadas</span><strong id="receitas">R$ 0,00</strong></article>
+    <article class="metric-card"><span>Despesas realizadas</span><strong id="despesas">R$ 0,00</strong></article>
+    <article class="metric-card accent"><span>Saldo operacional</span><strong id="saldo">R$ 0,00</strong></article>
+    <article class="metric-card"><span>Despesas pendentes</span><strong id="pendentes">R$ 0,00</strong></article>
+  </section>
+
+  <section class="content-grid">
+    <article class="panel chart-panel wide">
+      <div class="panel-head"><div><h2>Fluxo mensal</h2><p class="muted">Receitas x despesas realizadas</p></div></div>
+      <canvas id="monthly-chart" height="280"></canvas>
+    </article>
+
+    <article class="panel chart-panel">
+      <div class="panel-head"><div><h2>Despesas por categoria</h2><p class="muted">Distribuição do período</p></div></div>
+      <canvas id="category-chart" height="280"></canvas>
+    </article>
+
+    <article class="panel">
+      <div class="panel-head"><div><h2>Novo lançamento</h2><p class="muted">Cadastre uma receita ou despesa.</p></div></div>
+      <form id="transaction-form" class="form-grid">
+        <label>Tipo<select id="tipo"><option value="RECEITA">Receita</option><option value="DESPESA">Despesa</option></select></label>
+        <label>Descrição<input id="descricao" required maxlength="180"></label>
+        <label>Categoria<input id="categoria" placeholder="Vendas, Folha, Impostos..." required maxlength="80"></label>
+        <label>Valor<input id="valor" inputmode="decimal" placeholder="0,00" required></label>
+        <label>Data<input id="data_lancamento" type="date" required></label>
+        <label>Status<select id="status"><option value="REALIZADO">Realizado</option><option value="PENDENTE">Pendente</option></select></label>
+        <label class="full">Observações<textarea id="observacoes" rows="3"></textarea></label>
+        <div class="full form-actions"><button class="button primary" type="submit">Adicionar</button><div id="transaction-error" class="form-error" hidden></div></div>
+      </form>
+    </article>
+
+    <article class="panel">
+      <div class="panel-head"><div><h2>Importar dados</h2><p class="muted">CSV para carga inicial ou atualização em lote.</p></div></div>
+      <form id="csv-form" class="form-stack">
+        <input id="csv-file" type="file" accept=".csv" required>
+        <p class="helper">Colunas: tipo, descricao, categoria, valor, data_lancamento, status, observacoes.</p>
+        <div id="csv-error" class="form-error" hidden></div>
+        <button class="button secondary" type="submit">Importar CSV</button>
+      </form>
+    </article>
+
+    <article class="panel wide">
+      <div class="panel-head"><div><h2>Últimos lançamentos</h2><p class="muted" id="count-label">0 registros</p></div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+          <tbody id="transactions-body"></tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+<script>
+const today = new Date();
+const first = new Date(today.getFullYear(), today.getMonth(), 1);
+document.getElementById("inicio").value = FI.isoDate(first);
+document.getElementById("fim").value = FI.isoDate(today);
+document.getElementById("data_lancamento").value = FI.isoDate(today);
+
+async function loadDashboard() {
+  const inicio = document.getElementById("inicio").value;
+  const fim = document.getElementById("fim").value;
+  const data = await FI.api("/financeiro/dashboard?inicio=" + inicio + "&fim=" + fim);
+  document.getElementById("receitas").textContent = FI.money(data.total_receitas);
+  document.getElementById("despesas").textContent = FI.money(data.total_despesas);
+  document.getElementById("saldo").textContent = FI.money(data.saldo);
+  document.getElementById("pendentes").textContent = FI.money(data.despesas_pendentes);
+  document.getElementById("count-label").textContent = data.quantidade_lancamentos + " registros";
+  FI.drawMonthlyChart(document.getElementById("monthly-chart"), data.evolucao_mensal);
+  FI.drawCategoryChart(document.getElementById("category-chart"), data.despesas_por_categoria);
+  renderTransactions(data.recentes);
+}
+
+function renderTransactions(rows) {
+  const body = document.getElementById("transactions-body");
+  body.innerHTML = rows.map(row => \`
+    <tr>
+      <td>\${FI.date(row.data_lancamento)}</td>
+      <td><strong>\${FI.escape(row.descricao)}</strong></td>
+      <td>\${FI.escape(row.categoria)}</td>
+      <td><span class="tag \${row.tipo === "RECEITA" ? "income" : "expense"}">\${row.tipo}</span></td>
+      <td>\${FI.money(row.valor)}</td>
+      <td>\${row.status === "REALIZADO" ? "Realizado" : "Pendente"}</td>
+      <td><button class="icon-button" onclick="removeTransaction(\${row.id})" aria-label="Excluir">×</button></td>
+    </tr>\`).join("") || '<tr><td colspan="7" class="empty">Nenhum lançamento no período.</td></tr>';
+}
+
+async function removeTransaction(id) {
+  if (!confirm("Excluir este lançamento?")) return;
+  try {
+    const csrf = await FI.csrf();
+    await FI.api("/financeiro/lancamentos/" + id, {method: "DELETE", headers: {"X-CSRF-Token": csrf}});
+    await loadDashboard();
+  } catch (err) { alert(err.message); }
+}
+
+document.getElementById("apply-filter").addEventListener("click", loadDashboard);
+
+document.getElementById("logout-button").addEventListener("click", async () => {
+  try {
+    const csrf = await FI.csrf();
+    await FI.api("/auth/logout", {method: "POST", headers: {"X-CSRF-Token": csrf}});
+  } finally { window.location.href = "/login"; }
+});
+
+document.getElementById("transaction-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const error = document.getElementById("transaction-error");
+  error.hidden = true;
+  try {
+    const csrf = await FI.csrf();
+    await FI.api("/financeiro/lancamentos", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": csrf},
+      body: JSON.stringify({
+        tipo: document.getElementById("tipo").value,
+        descricao: document.getElementById("descricao").value,
+        categoria: document.getElementById("categoria").value,
+        valor: FI.parseMoney(document.getElementById("valor").value),
+        data_lancamento: document.getElementById("data_lancamento").value,
+        status: document.getElementById("status").value,
+        observacoes: document.getElementById("observacoes").value || null
+      })
+    });
+    event.target.reset();
+    document.getElementById("data_lancamento").value = FI.isoDate(new Date());
+    await loadDashboard();
+  } catch (err) { error.textContent = err.message; error.hidden = false; }
+});
+
+document.getElementById("csv-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const error = document.getElementById("csv-error");
+  error.hidden = true;
+  try {
+    const file = document.getElementById("csv-file").files[0];
+    const csrf = await FI.csrf();
+    const form = new FormData();
+    form.append("arquivo", file);
+    const result = await FI.api("/financeiro/importar-csv", {method: "POST", headers: {"X-CSRF-Token": csrf}, body: form});
+    alert(result.importados + " lançamentos importados.");
+    event.target.reset();
+    await loadDashboard();
+  } catch (err) { error.textContent = err.message; error.hidden = false; }
+});
+
+(async () => {
+  try {
+    const me = await FI.api("/auth/me");
+    document.getElementById("company-name").textContent = me.empresa.nome;
+    document.getElementById("user-name").textContent = me.usuario.nome;
+    await loadDashboard();
+  } catch (err) { window.location.href = "/login"; }
+})();
+</script>
+</body>
+</html>
