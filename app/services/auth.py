@@ -43,7 +43,9 @@ class AuthService:
         self.db.flush()
 
         token, csrf = self._criar_sessao(usuario, agora)
+        self.db.commit()
         self.db.refresh(empresa)
+        self.db.refresh(usuario)
         return empresa, usuario, token, csrf
 
     def autenticar(self, email: str, senha: str) -> tuple[Usuario, str, str] | None:
