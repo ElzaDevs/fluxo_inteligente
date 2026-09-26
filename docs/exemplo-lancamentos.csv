@@ -1,0 +1,6 @@
+tipo,descricao,categoria,valor,data_lancamento,status,observacoes
+RECEITA,Contrato mensal,Vendas,"12500,00",2026-09-01,REALIZADO,Receita recorrente
+RECEITA,Consultoria,Servicos,"3500,00",2026-09-05,REALIZADO,Projeto
+DESPESA,Aluguel,Infraestrutura,"2800,00",2026-09-05,REALIZADO,Escritorio
+DESPESA,Internet,Infraestrutura,"250,00",2026-09-08,REALIZADO,Conectividade
+DESPESA,Fornecedor de software,Tecnologia,"600,00",2026-09-10,PENDENTE,Renovacao
