@@ -88,8 +88,8 @@ A prioridade deve seguir as categorias:
 | Código | Prioridade |
 | ------ | ---------- |
 | A      | Crítica    |
-| B      | Média      |
-| C      | Alta       |
+| B      | Alta       |
+| C      | Média      |
 | D      | Baixa      |
 
 A definição dos critérios utilizados para cada categoria deve estar documentada em `regras-negocio.md`.
