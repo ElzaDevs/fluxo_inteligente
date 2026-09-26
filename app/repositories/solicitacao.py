@@ -15,15 +15,19 @@ class SolicitacaoRepository:
         self.db.flush()
         return solicitacao
 
-    def buscar(self, solicitacao_id: int) -> Solicitacao | None:
+    def buscar(self, empresa_id: int, solicitacao_id: int) -> Solicitacao | None:
         return self.db.scalar(
-            select(Solicitacao).where(Solicitacao.id == solicitacao_id)
+            select(Solicitacao).where(
+                Solicitacao.id == solicitacao_id,
+                Solicitacao.empresa_id == empresa_id,
+            )
         )
 
-    def listar(self, limit: int = 100) -> list[Solicitacao]:
+    def listar(self, empresa_id: int, limit: int = 100) -> list[Solicitacao]:
         return list(
             self.db.scalars(
                 select(Solicitacao)
+                .where(Solicitacao.empresa_id == empresa_id)
                 .order_by(Solicitacao.created_at.desc())
                 .limit(limit)
             ).all()
