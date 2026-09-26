@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from sqlalchemy import text
 from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401
